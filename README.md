@@ -20,7 +20,7 @@ Django
 
 Django REST Framework (DRF)
 
-PostgreSQL (or any preferred database)
+Mysql 
 
 OpenAI API (for note summarization)
 
