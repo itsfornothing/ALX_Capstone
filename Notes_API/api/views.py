@@ -1,34 +1,40 @@
 import jwt
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from django.contrib.auth.models import User
 from rest_framework import status
 from datetime import datetime, timedelta, timezone
+from rest_framework.permissions import IsAuthenticated
 from django.conf import settings
-from .serializers import RegisterationSerializer, LoginSerializer
+from .serializers import RegisterationSerializer, LoginSerializer, NoteSerializer, CategorySerializer  
+from .models import Note, Category
+from django.shortcuts import get_object_or_404
+from .authentication import JWTAuthentication
+from rest_framework.permissions import AllowAny
 
 
 
 def generate_token(user):
+    expire_time = datetime.now(timezone.utc) + timedelta(days=7)
     payload = {
         'user_id': user.id,
         'username': user.username,
-        'exp': datetime.now(timezone.utc) + timedelta(hours=24),
+        'exp': expire_time,
         'iat': datetime.now(timezone.utc),
     }
     token = jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
-    return token
+    return token, expire_time
 
 
 class RegisterView(APIView):
+    permission_classes = [AllowAny]
     def post(self, request):
         serializer = RegisterationSerializer(data=request.data)
 
         if serializer.is_valid():
             user = serializer.save()
-            token = generate_token(user)
-            return Response({'token': token}, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_201_CREATED)
+            token, expire_time = generate_token(user)
+            return Response({'token': token, 'expires_at': expire_time}, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class LoginView(APIView):
@@ -43,18 +49,100 @@ class LoginView(APIView):
         return Response(serializer.errors, status=status.HTTP_401_UNAUTHORIZED)
     
 
-class JWTAuthentication:
-    def authenticate(self, request):
-        auth_header = request.headers.get('Authorization')
-        if not auth_header or not auth_header.startswith('Bearer '):
-            return None
-        token = auth_header.split(' ')[1]
-        try:
-            payload = jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
-            user = User.objects.get(id=payload['user_id'])
-            return (user, token)
-        except (jwt.ExpiredSignatureError, jwt.InvalidTokenError, User.DoesNotExist):
-            return None
+class CreateNoteView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = NoteSerializer(data=request.data, context={'request': request})
+
+        if serializer.is_valid():
+            serializer.save(owner=request.user)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
         
-    def authenticate_header(self, request):
-        return 'Bearer'
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    def get(self, request):
+        
+        all_notes = Note.objects.filter(owner=request.user)
+        serializer = NoteSerializer(all_notes, many=True, context={'request': request}) 
+
+        if all_notes:
+            return Response({"status": "success", "data": serializer.data}, status=status.HTTP_200_OK)
+    
+
+class NoteDetailView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, note_id):
+       
+        note = get_object_or_404(Note, id=note_id, owner=request.user)
+        serializer = NoteSerializer(note, context={'request': request})
+
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
+    def put(self, request, note_id):
+        try:
+            note = Note.objects.get(id=note_id, owner=request.user)
+            serializer = NoteSerializer(note, data=request.data, context={'request': request})
+            if serializer.is_valid():
+                serializer.save()
+                return Response({'msg': 'Note updated successfully', 'data': serializer.data}, status=status.HTTP_200_OK)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Note.DoesNotExist:
+            return Response({"status": "error", "message": "Note not found"}, status=status.HTTP_404_NOT_FOUND)
+
+
+    def delete(self, request, note_id):
+        try:
+            note = Note.objects.get(id=note_id, owner=request.user)
+            note.delete()
+
+            return Response({'msg': 'Note deleted successfully'}, status=status.HTTP_204_NO_CONTENT)        
+        except Note.DoesNotExist:
+            return Response({"status": "error", "message": "Note not found"}, status=status.HTTP_404_NOT_FOUND)
+        
+
+class NoteTitleSearchView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+    serializer_class = NoteSerializer
+
+    def get(self, request, title):
+        try:
+            note = Note.objects.filter(title__icontains=title, owner=request.user)
+            serializer = NoteSerializer(note, many=True, context={'request': request})
+
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        
+        except Note.DoesNotExist:
+            return Response({"error": "Note not found"}, status=status.HTTP_404_NOT_FOUND)
+        
+
+class NoteCategorySearchView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+    serializer_class = NoteSerializer
+
+    def get(self, request, category):
+        try:
+            note = Note.objects.filter(category__name__icontains=category, category__owner=request.user)
+            serializer = NoteSerializer(note, many=True, context={'request': request})
+
+            return Response({"status": "success", "data": serializer.data}, status=status.HTTP_200_OK)
+        
+        except Note.DoesNotExist:
+            return Response({"status": "error", "message": "Note not found"}, status=status.HTTP_404_NOT_FOUND)
+        
+
+class CategoryView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        all_categories = Category.objects.filter(owner=request.user)
+        serializer = CategorySerializer(all_categories, many=True, context={'request': request}) 
+
+        if all_categories:
+            return Response({"status": "success", "data": serializer.data}, status=status.HTTP_200_OK)

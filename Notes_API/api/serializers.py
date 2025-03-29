@@ -1,9 +1,12 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
 from django.contrib.auth import authenticate
+from .models import Note, Category
+from datetime import timezone, datetime
+from openai import OpenAI
 
 
-deepseek = "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"
+deepseek = "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"
 
 
 class RegisterationSerializer(serializers.ModelSerializer):
@@ -14,9 +17,7 @@ class RegisterationSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['email', 'username', 'password']
-        extra_kwargs = {
-            'password' : {'write_only': True}
-        }
+
 
     def validate(self, data):
         if User.objects.filter(username=data['username']).exists():
@@ -32,13 +33,14 @@ class RegisterationSerializer(serializers.ModelSerializer):
         return user
     
 
-class LoginSerializer(serializers.ModelSerializer):
+class LoginSerializer(serializers.Serializer):
     email = serializers.EmailField(required=True)
     password = serializers.CharField(write_only=True,required=True)
 
     class Meta:
         model = User
         fields = ['email', 'password']
+
 
     def validate(self, data):
         email = data.get('email')
@@ -53,3 +55,99 @@ class LoginSerializer(serializers.ModelSerializer):
                 return data
             
         raise serializers.ValidationError({'error': 'Invalid credentials'})
+
+
+class CategorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Category
+        fields = ['name']
+
+
+class NoteSerializer(serializers.ModelSerializer):
+    category = CategorySerializer()
+    tags = serializers.ListField(child=serializers.CharField(max_length=50), allow_empty=True)
+
+
+    class Meta:
+        model = Note
+        fields = ['title', 'category', 'tags', 'content', 'summary', 
+                  'reminder_date', 'created_at', 'updated_at']
+        read_only_fields = ['created_at', 'updated_at']
+
+    def validate_category(self, value):
+        user = self.context['request'].user
+        if not isinstance(value, dict) or 'name' not in value:
+            raise serializers.ValidationError("Invalid category format.")
+        
+        category_name = value['name']
+        category, created = Category.objects.get_or_create(name=category_name.lower(), owner=user)
+        return category
+    
+
+    def validate_reminder_date(self, value):
+        if value < datetime.now(timezone.utc).date():
+            raise serializers.ValidationError("Reminder date cannot be in the past.")
+        return value
+    
+    def create(self, validated_data):
+        validated_data['owner'] = self.context['request'].user
+        content = validated_data['content']
+        
+
+        client = OpenAI(
+        base_url="https://openrouter.ai/api/v1",
+        api_key="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",
+        )
+
+        try:
+            completion = client.chat.completions.create(
+            
+            extra_headers={
+            "HTTP-Referer": "<YOUR_SITE_URL>", 
+            "X-Title": "<YOUR_SITE_NAME>",
+            },
+            extra_body={},
+            model="deepseek/deepseek-r1:free",
+            messages=[
+                {
+                "role": "user",
+                "content": f"Summarize this article: {content}"
+                }
+                ]
+            )
+            validated_data['summary'] = completion.choices[0].message.content
+        except Exception as e:
+            validated_data['summary'] = "Sorry, Summary unavailable due to an API error."
+
+       
+        return super().create(validated_data)
+    
+
+    def update(self, instance, validated_data):
+        if validated_data['content'] != instance.content:
+            client = OpenAI(
+                base_url="https://openrouter.ai/api/v1",
+                api_key="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",
+            )
+
+            try:
+                completion = client.chat.completions.create(
+
+                extra_headers={
+                    "HTTP-Referer": "<YOUR_SITE_URL>", 
+                    "X-Title": "<YOUR_SITE_NAME>",
+                    },
+                    extra_body={},
+                    model="deepseek/deepseek-r1:free",
+                    messages=[
+                        {
+                        "role": "user",
+                        "content": f"Summarize this article: {validated_data['content']}"
+                        }
+                        ]
+                )
+                validated_data['summary'] = completion.choices[0].message.content
+            except Exception as e:
+                validated_data['summary'] = "Sorry, Summary unavailable due to an API error."
+        return super().update(instance, validated_data)
+

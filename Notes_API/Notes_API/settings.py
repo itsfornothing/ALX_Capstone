@@ -70,15 +70,28 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'Notes_API.wsgi.application'
 
+JWT_SECRET_KEY = 'Haha_123_@&$__what'  
+JWT_ALGORITHM = 'HS256'
+
 
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.mysql',
+        'NAME': 'Note_DB',
+        'USER': 'root',
+        'PASSWORD': 'Haha123@&$',
+        'HOST':'localhost',
+        'PORT':'3306',
     }
+}
+
+REST_FRAMEWORK = {
+    'DEFAULT_PERMISSION_CLASSES': (
+        'rest_framework.permissions.IsAuthenticated',
+    ),
 }
 
 
