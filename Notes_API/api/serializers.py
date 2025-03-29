@@ -4,11 +4,12 @@ from django.contrib.auth import authenticate
 from .models import Note, Category
 from datetime import timezone, datetime
 from openai import OpenAI
+from dotenv import load_dotenv
+import os
 
 
-deepseek = "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"
 
-
+load_dotenv()
 class RegisterationSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(required=True)
     username = serializers.CharField(required=True)
@@ -96,7 +97,7 @@ class NoteSerializer(serializers.ModelSerializer):
 
         client = OpenAI(
         base_url="https://openrouter.ai/api/v1",
-        api_key="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",
+        api_key=os.getenv("DEEPSEEK_API"),
         )
 
         try:
@@ -127,7 +128,7 @@ class NoteSerializer(serializers.ModelSerializer):
         if validated_data['content'] != instance.content:
             client = OpenAI(
                 base_url="https://openrouter.ai/api/v1",
-                api_key="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",
+                api_key=os.getenv("DEEPSEEK_API"),
             )
 
             try:
