@@ -9,7 +9,7 @@ app = Celery('Notes_API')
 app.conf.beat_schedule = {
     'send_email_to_remind': {
         'task': 'api.tasks.send_email',
-        'schedule': crontab(hour=13, minute=27
+        'schedule': crontab(hour=6, minute=00
         ),  
     },
     
