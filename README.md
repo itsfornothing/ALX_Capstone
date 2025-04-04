@@ -209,6 +209,8 @@ Update note content by its title.
 
 
 
+
+
 Celery Integration in Notes API
 This project uses Celery for asynchronous task processing. Celery is a distributed task queue that allows you to run tasks in the background, such as sending reminder emails for notes. Below is an explanation of how celery.py and task.py are configured and how they work together.
 
