@@ -1,6 +1,7 @@
 from rest_framework.authentication import BaseAuthentication
 from rest_framework.exceptions import AuthenticationFailed
 import jwt
+from jwt.exceptions import ExpiredSignatureError, InvalidTokenError
 from django.contrib.auth.models import User
 from django.conf import settings
 
@@ -19,13 +20,13 @@ class JWTAuthentication(BaseAuthentication):
             user = User.objects.get(id=payload['user_id'])
             return (user, token)
         
-        except jwt.ExpiredSignatureError:
+        except ExpiredSignatureError:
             raise AuthenticationFailed("Your token has expired!")
         
         except User.DoesNotExist:
             raise AuthenticationFailed("User not found!")
         
-        except jwt.InvalidTokenError:
+        except InvalidTokenError:
             raise AuthenticationFailed("You have provided invalid token!")
         
     def authenticate_header(self, request):

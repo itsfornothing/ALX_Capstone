@@ -9,7 +9,7 @@ import os
 
 
 
-load_dotenv()
+load_dotenv(dotenv_path='/Users/user/Desktop/ALX_Backend/finale/ALX_Capstone/Notes_API/.env')
 class RegisterationSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(required=True)
     username = serializers.CharField(required=True)
@@ -125,9 +125,11 @@ class NoteSerializer(serializers.ModelSerializer):
     
 
     def update(self, instance, validated_data):
+        print(os.getenv("DEEPSEEK_API"))
         if validated_data['content'] != instance.content:
             client = OpenAI(
                 base_url="https://openrouter.ai/api/v1",
+                
                 api_key=os.getenv("DEEPSEEK_API"),
             )
 
