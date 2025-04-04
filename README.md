@@ -226,7 +226,7 @@ Celery App Initialization:
 The Celery app is initialized with the project name (Notes_API).
 Task Scheduling:
 
-The beat_schedule dictionary defines periodic tasks. In this case, the send_email_to_remind task is scheduled to run daily at 13:02 (1:02 PM).
+The beat_schedule dictionary defines periodic tasks. In this case, the send_email_to_remind task is scheduled to run daily at 6:00 (6:0 AM).
 Configuration:
 
 Celery is configured to use Django settings by specifying the namespace='CELERY'.
